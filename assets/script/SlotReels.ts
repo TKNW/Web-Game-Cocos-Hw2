@@ -1,4 +1,4 @@
-import { _decorator, Component, Button, Prefab, instantiate, Node, tween, v3, NodePool, Animation } from 'cc';
+import { _decorator, Component, Button, Prefab, instantiate, Node, tween, v3, NodePool, Animation, log } from 'cc';
 import Explode from '../game/Script/Explode';
 import { Delay } from './Delay';
 import { SlotSymbol } from './SlotSymbol';
@@ -54,6 +54,7 @@ export class SlotReels extends Component {
     private async gameFlow() {
         // 避免反覆點擊按鈕
         if (this.onSpinState) {
+            log('return');
             return;
         }
         this.onSpinState = true;
@@ -70,6 +71,18 @@ export class SlotReels extends Component {
             hasExplode = await this.explode();
         }
         this.onSpinState = false;
+    }
+
+    private async generateNewSymbol() {
+        for (let i = 0; i < this.m_symbols.length; i++) {
+            for (let j = 0; j < this.m_symbols[i].length; j++) {
+                const node = this.getNewDefaultSymbol();
+                node.parent = this.reels[i];
+                node.position = this.symbolPositions[j];
+                node.position = node.position.add(v3(0, 485));
+                this.m_symbols[i][j] = node;
+            }
+        }
     }
 
     // 表演－將所有符號掉落離開盤面, 此 function 將於表演結束後 return
@@ -97,18 +110,64 @@ export class SlotReels extends Component {
     }
 
     // TODO: 表演－掉第一個盤面(完整盤面)的新符號下來, 此 function 將於表演結束後 return
-    private async showNewPlate() {}
+    private async showNewPlate() {
+        const promiseArray: Promise<void>[] = [];
+        this.generateNewSymbol();
+        for (let i = 0; i < this.m_symbols.length; i++) {
+            for (let j = 0; j < this.m_symbols[i].length; j++) {
+                if (this.m_symbols[i][j]) {
+                    promiseArray.push(
+                        new Promise<void>((resolve) => {
+                            tween(this.m_symbols[i][j])
+                                .by(0.5, { position: v3(0, -485) })
+                                .call(()=>{
+                                    resolve();
+                                })
+                                .start();
+                        }),
+                    );
+                }
+            }
+        }
+        return Promise.all(promiseArray);
+    }
 
     // TODO: 表演－消除當前盤面應被消除的符號, 此 function 將於表演結束後 return true; 若無消除表演的話則 return false;
     private async explode() {
+        const explodeNode = this.needExplodeSymbolTypes;
+        if (explodeNode.length !== 0) {
+            const promiseArray: Promise<void>[] = [];
+            for (let k = 0; k < explodeNode.length; k++) {
+                for (let i = 0; i < this.m_symbols.length; i++) {
+                    for (let j = 0; j < this.m_symbols[i].length; j++) {
+                        if (this.m_symbols[i][j] && this.m_symbols[i][j].getComponent(SlotSymbol).type === explodeNode[k]) {
+                            promiseArray.push(
+                                new Promise<void>((resolve) => {
+                                    this.playSymbolAnimation(this.m_symbols[i][j].getComponent(SlotSymbol));
+                                    this.m_symbols[i][j].emit('recycle');
+                                    this.m_symbols[i][j] = null;
+                                    resolve();
+                                }),
+                            );
+                        }
+                    }
+                }
+            }
+            Promise.all(promiseArray);
+            return false;
+        }
         return false;
     }
 
     // TODO: 表演－原有(未被消除)的符號往下掉, 此 function 將於表演結束後 return
-    private async tileMatching() {}
+    private async tileMatching() {
+
+    }
 
     // TODO: 表演－將盤面補滿符號, 此 function 將於表演結束後 return
-    private async patchUp() {}
+    private async patchUp() {
+        
+    }
 
     // 表演－單個Symbol消除動畫 (包含 SymbolEffect 及 ExplodeEffect), 此 function 將於表演結束後 return
     private async playSymbolAnimation(symbol: SlotSymbol) {
