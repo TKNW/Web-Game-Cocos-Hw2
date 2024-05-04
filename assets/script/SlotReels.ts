@@ -1,4 +1,4 @@
-import { _decorator, Component, Button, Prefab, instantiate, Node, tween, v3, NodePool, Animation, log } from 'cc';
+import { _decorator, Component, Button, Prefab, instantiate, Node, tween, v3, NodePool, Animation } from 'cc';
 import Explode from '../game/Script/Explode';
 import { Delay } from './Delay';
 import { SlotSymbol } from './SlotSymbol';
@@ -54,7 +54,6 @@ export class SlotReels extends Component {
     private async gameFlow() {
         // 避免反覆點擊按鈕
         if (this.onSpinState) {
-            log('return');
             return;
         }
         this.onSpinState = true;
@@ -142,19 +141,14 @@ export class SlotReels extends Component {
                     if (this.m_symbols[i][j]) {
                         const slotType = this.m_symbols[i][j].getComponent(SlotSymbol).type;
                         if (explodeNode.includes(slotType)) {
-                            promiseArray.push(
-                                new Promise<void>((resolve) => {
-                                    this.playSymbolAnimation(this.m_symbols[i][j].getComponent(SlotSymbol));
-                                    this.m_symbols[i][j].emit('recycle');
-                                    this.m_symbols[i][j] = null;
-                                    resolve();
-                                }),
-                            );
+                            promiseArray.push(this.playSymbolAnimation(this.m_symbols[i][j].getComponent(SlotSymbol)));
+                            this.m_symbols[i][j].emit('recycle');
+                            this.m_symbols[i][j] = null;
                         }
                     }
                 }
             }
-            await Promise.all(promiseArray).then(() => log('promise return'));
+            await Promise.all(promiseArray);
             return true;
         }
         return false;
@@ -162,7 +156,6 @@ export class SlotReels extends Component {
 
     // TODO: 表演－原有(未被消除)的符號往下掉, 此 function 將於表演結束後 return
     private async tileMatching() {
-        log(`${this.m_symbols.length} ${this.m_symbols[0].length}`);
         const promiseArray: Promise<void>[] = [];
         for (let i = 0; i < this.m_symbols.length; i++) {
             for (let j = this.m_symbols[i].length - 1; j >= 0; j--) {
