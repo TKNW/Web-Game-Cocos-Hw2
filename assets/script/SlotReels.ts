@@ -120,7 +120,7 @@ export class SlotReels extends Component {
                         new Promise<void>((resolve) => {
                             tween(this.m_symbols[i][j])
                                 .by(0.5, { position: v3(0, -485) })
-                                .call(()=>{
+                                .call(() => {
                                     resolve();
                                 })
                                 .start();
@@ -137,10 +137,11 @@ export class SlotReels extends Component {
         const explodeNode = this.needExplodeSymbolTypes;
         if (explodeNode.length !== 0) {
             const promiseArray: Promise<void>[] = [];
-            for (let k = 0; k < explodeNode.length; k++) {
-                for (let i = 0; i < this.m_symbols.length; i++) {
-                    for (let j = 0; j < this.m_symbols[i].length; j++) {
-                        if (this.m_symbols[i][j] && this.m_symbols[i][j].getComponent(SlotSymbol).type === explodeNode[k]) {
+            for (let i = 0; i < this.m_symbols.length; i++) {
+                for (let j = 0; j < this.m_symbols[i].length; j++) {
+                    if (this.m_symbols[i][j]) {
+                        const slotType = this.m_symbols[i][j].getComponent(SlotSymbol).type;
+                        if (explodeNode.includes(slotType)) {
                             promiseArray.push(
                                 new Promise<void>((resolve) => {
                                     this.playSymbolAnimation(this.m_symbols[i][j].getComponent(SlotSymbol));
@@ -153,20 +154,69 @@ export class SlotReels extends Component {
                     }
                 }
             }
-            Promise.all(promiseArray);
-            return false;
+            await Promise.all(promiseArray).then(() => log('promise return'));
+            return true;
         }
         return false;
     }
 
     // TODO: 表演－原有(未被消除)的符號往下掉, 此 function 將於表演結束後 return
     private async tileMatching() {
-
+        log(`${this.m_symbols.length} ${this.m_symbols[0].length}`);
+        const promiseArray: Promise<void>[] = [];
+        for (let i = 0; i < this.m_symbols.length; i++) {
+            for (let j = this.m_symbols[i].length - 1; j >= 0; j--) {
+                if (this.m_symbols[i][j] === null) {
+                    for (let k = j - 1; k >= 0; --k) {
+                        if (this.m_symbols[i][k] === null) {
+                            continue;
+                        }
+                        const movePosition = v3(0, (k - j) * 125);
+                        promiseArray.push(
+                            new Promise<void>((resolve) => {
+                                tween(this.m_symbols[i][k])
+                                    .by(0.2, { position: movePosition })
+                                    .call(() => {
+                                        resolve();
+                                    })
+                                    .start();
+                            }),
+                        );
+                        this.m_symbols[i][j] = this.m_symbols[i][k];
+                        this.m_symbols[i][k] = null;
+                        break;
+                    }
+                }
+            }
+        }
+        return Promise.all(promiseArray);
     }
 
     // TODO: 表演－將盤面補滿符號, 此 function 將於表演結束後 return
     private async patchUp() {
-        
+        const promiseArray: Promise<void>[] = [];
+        for (let i = 0; i < this.m_symbols.length; i++) {
+            for (let j = 0; j < this.m_symbols[i].length; j++) {
+                if (this.m_symbols[i][j] === null) {
+                    const node = this.getNewDefaultSymbol();
+                    node.parent = this.reels[i];
+                    node.position = this.symbolPositions[j];
+                    node.position = node.position.add(v3(0, 485));
+                    this.m_symbols[i][j] = node;
+                    promiseArray.push(
+                        new Promise<void>((resolve) => {
+                            tween(this.m_symbols[i][j])
+                                .by(0.5, { position: v3(0, -485) })
+                                .call(() => {
+                                    resolve();
+                                })
+                                .start();
+                        }),
+                    );
+                }
+            }
+        }
+        return Promise.all(promiseArray);
     }
 
     // 表演－單個Symbol消除動畫 (包含 SymbolEffect 及 ExplodeEffect), 此 function 將於表演結束後 return
